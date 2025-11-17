@@ -23,22 +23,37 @@ export async function generateAndPersistNewsletter(opts: { customer: any; runId:
     iterateUpdates: iter,
   });
 
-  const { documentId, url } = await createNewsletterDoc({
-    customerName: customer.name,
-    content,
-  });
-
-  await db.update(newsletterRun).set({
+  // Store content in database (always)
+  const updateData: any = {
     status: 'success',
-    googleDocId: documentId,
-    googleDocUrl: url,
+    content: content,
     finishedAt: new Date(),
-  }).where(eq(newsletterRun.id, runId));
+  };
+
+  // Optionally create Google Doc if credentials are available
+  try {
+    const { documentId, url } = await createNewsletterDoc({
+      customerName: customer.name,
+      content,
+    });
+    updateData.googleDocId = documentId;
+    updateData.googleDocUrl = url;
+  } catch (error: any) {
+    // Google Drive is optional - log but don't fail
+    console.warn('Google Drive creation failed (optional):', error?.message || error);
+  }
+
+  await db.update(newsletterRun).set(updateData).where(eq(newsletterRun.id, runId));
 
   await db.update(customerConfig).set({
     lastRunAt: new Date(),
   }).where(eq(customerConfig.id, customer.id));
 
-  return { runId, googleDocId: documentId, googleDocUrl: url };
+  return { 
+    runId, 
+    content,
+    googleDocId: updateData.googleDocId, 
+    googleDocUrl: updateData.googleDocUrl 
+  };
 }
 

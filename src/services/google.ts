@@ -3,6 +3,11 @@ import { env } from '@/lib/env';
 import { NewsletterContent } from '@/lib/types';
 
 function getAuth() {
+  // Google Drive is optional - check if credentials are available
+  if (!env.GOOGLE_SERVICE_ACCOUNT_EMAIL || !env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY) {
+    throw new Error('Google Drive credentials not configured. This feature is optional.');
+  }
+
   const auth = new google.auth.JWT({
     email: env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
     key: env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY.replace(/\\n/g, '\n'),
@@ -17,6 +22,10 @@ function getAuth() {
 export async function ensureCustomerFolder(customerName: string) {
   const auth = getAuth();
   const drive = google.drive({ version: 'v3', auth });
+
+  if (!env.GOOGLE_DRIVE_PARENT_FOLDER_ID) {
+    throw new Error('GOOGLE_DRIVE_PARENT_FOLDER_ID is required for Google Drive integration');
+  }
 
   const q = `'${env.GOOGLE_DRIVE_PARENT_FOLDER_ID}' in parents and mimeType = 'application/vnd.google-apps.folder' and name = '${customerName.replace(/'/g, "\\'")}' and trashed = false`;
   const search = await drive.files.list({ q, fields: 'files(id, name)' });
@@ -37,6 +46,10 @@ export async function createNewsletterDoc(opts: {
   customerName: string;
   content: NewsletterContent;
 }) {
+  if (!env.GOOGLE_DRIVE_PARENT_FOLDER_ID) {
+    throw new Error('GOOGLE_DRIVE_PARENT_FOLDER_ID is required for Google Drive integration');
+  }
+
   const auth = getAuth();
   const drive = google.drive({ version: 'v3', auth });
   const docs = google.docs({ version: 'v1', auth });

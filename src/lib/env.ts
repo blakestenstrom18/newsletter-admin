@@ -12,9 +12,10 @@ const envSchema = z.object({
   DATABASE_URL: z.string().url(),
   CRON_SECRET: z.string(),
   OPENAI_API_KEY: z.string(),
-  GOOGLE_SERVICE_ACCOUNT_EMAIL: z.string().email(),
-  GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: z.string(),
-  GOOGLE_DRIVE_PARENT_FOLDER_ID: z.string(),
+  // Google Drive is optional - newsletters are stored in database by default
+  GOOGLE_SERVICE_ACCOUNT_EMAIL: z.string().email().optional(),
+  GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: z.string().optional(),
+  GOOGLE_DRIVE_PARENT_FOLDER_ID: z.string().optional(),
   NEWS_API_KEY: z.string(),
 });
 
@@ -32,9 +33,9 @@ const envValues = {
   DATABASE_URL: process.env.DATABASE_URL || 'postgresql://dummy@localhost/dummy',
   CRON_SECRET: process.env.CRON_SECRET || 'dummy-cron-secret',
   OPENAI_API_KEY: process.env.OPENAI_API_KEY || 'dummy-openai-key',
-  GOOGLE_SERVICE_ACCOUNT_EMAIL: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || 'dummy@example.com',
-  GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY || 'dummy-private-key',
-  GOOGLE_DRIVE_PARENT_FOLDER_ID: process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID || 'dummy-folder-id',
+  GOOGLE_SERVICE_ACCOUNT_EMAIL: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+  GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY,
+  GOOGLE_DRIVE_PARENT_FOLDER_ID: process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID,
   NEWS_API_KEY: process.env.NEWS_API_KEY || 'dummy-news-key',
 };
 

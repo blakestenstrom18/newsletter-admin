@@ -3,6 +3,7 @@
 import useSWR from 'swr';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import CustomerForm from '@/components/customers/customer-form';
@@ -30,7 +31,10 @@ export default function CustomerDetailPage() {
         return;
       }
       const j = await r.json();
-      toast.success('Newsletter generated', { description: `Doc: ${j.googleDocUrl}` });
+      const message = j.googleDocUrl 
+        ? `View in app or Google Docs: ${j.googleDocUrl}`
+        : 'Newsletter generated and stored in database';
+      toast.success('Newsletter generated', { description: message });
       mutate();
     } catch (err) {
       setRunning(false);
@@ -59,8 +63,10 @@ export default function CustomerDetailPage() {
     );
   }
 
+  const { data: newsletters } = useSWR(`/api/customers/${id}/newsletters`, fetcher);
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">{data.name}</h1>
@@ -71,9 +77,60 @@ export default function CustomerDetailPage() {
           <Button onClick={runNow} disabled={running}>{running ? 'Running...' : 'Run Newsletter Now'}</Button>
         </div>
       </div>
+
+      <div className="space-y-4">
+        <h2 className="text-xl font-semibold">Newsletter History</h2>
+        {newsletters && newsletters.length > 0 ? (
+          <div className="space-y-2">
+            {newsletters.map((newsletter: any) => (
+              <div key={newsletter.id} className="rounded-md border p-4 flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">
+                      {new Date(newsletter.startedAt).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                    <Badge variant={newsletter.status === 'success' ? 'default' : newsletter.status === 'error' ? 'destructive' : 'secondary'}>
+                      {newsletter.status}
+                    </Badge>
+                    <Badge variant="outline">{newsletter.triggerType}</Badge>
+                  </div>
+                  {newsletter.errorMessage && (
+                    <p className="text-sm text-destructive mt-1">{newsletter.errorMessage}</p>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  {newsletter.content && (
+                    <Link href={`/customers/${id}/newsletters/${newsletter.id}`}>
+                      <Button variant="outline" size="sm">View</Button>
+                    </Link>
+                  )}
+                  {newsletter.googleDocUrl && (
+                    <Button variant="outline" size="sm" asChild>
+                      <a href={newsletter.googleDocUrl} target="_blank" rel="noopener noreferrer">
+                        Google Docs
+                      </a>
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-muted-foreground">No newsletters generated yet.</p>
+        )}
+      </div>
+
       <div className="rounded-md border p-4">
+        <h3 className="font-semibold mb-2">Customer Configuration</h3>
         <pre className="text-sm overflow-x-auto">{JSON.stringify(data, null, 2)}</pre>
       </div>
+
       <div>
         <Link href="/customers" className="text-sm text-muted-foreground underline">← Back to Customers</Link>
       </div>

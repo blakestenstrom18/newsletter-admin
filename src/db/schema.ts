@@ -57,6 +57,16 @@ export const newsletterRun = pgTable('newsletter_run', {
   triggerType: varchar('trigger_type', { length: 16 }).notNull(), // "scheduled" | "manual"
   status: varchar('status', { length: 16 }).notNull().default('pending'), // pending|success|error
   errorMessage: text('error_message'),
+  // Newsletter content stored in database (no Google Drive required)
+  content: jsonb('content').$type<{
+    executiveSummary: string;
+    customerHighlights: Array<{ summary: string; implication: string; sourceUrl?: string }>;
+    industryTrends: Array<{ trend: string; implication: string; sourceUrl?: string }>;
+    iterateUpdates: Array<{ update: string; sourceUrl?: string }>;
+    futureIdeas: Array<{ idea: string; value: string }>;
+    generatedAtIso: string;
+  }>(),
+  // Google Drive fields (optional - only used if Google credentials are provided)
   googleDocId: varchar('google_doc_id', { length: 128 }),
   googleDocUrl: varchar('google_doc_url', { length: 512 }),
   startedAt: timestamp('started_at', { withTimezone: true }).defaultNow(),
