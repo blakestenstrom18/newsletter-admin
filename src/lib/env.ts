@@ -3,8 +3,10 @@ import { z } from 'zod';
 const envSchema = z.object({
   NEXTAUTH_URL: z.string().url(),
   NEXTAUTH_SECRET: z.string(),
-  GOOGLE_CLIENT_ID: z.string(),
-  GOOGLE_CLIENT_SECRET: z.string(),
+  // Google OAuth is optional - can use email-only auth instead
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  // At least one of ALLOWED_DOMAIN or ALLOWED_EMAILS must be set
   ALLOWED_DOMAIN: z.string().optional(),
   ALLOWED_EMAILS: z.string().optional(),
   DATABASE_URL: z.string().url(),
@@ -23,8 +25,8 @@ const isBuildTime = !process.env.DATABASE_URL;
 const envValues = {
   NEXTAUTH_URL: process.env.NEXTAUTH_URL || 'http://localhost:3000',
   NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET || 'dummy-secret-for-build',
-  GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || 'dummy-client-id',
-  GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || 'dummy-client-secret',
+  GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
+  GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
   ALLOWED_DOMAIN: process.env.ALLOWED_DOMAIN,
   ALLOWED_EMAILS: process.env.ALLOWED_EMAILS,
   DATABASE_URL: process.env.DATABASE_URL || 'postgresql://dummy@localhost/dummy',
