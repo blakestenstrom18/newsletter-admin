@@ -1,0 +1,80 @@
+:root {
+  /* Primary */
+  --primary-50-hex: #E9F0FC;
+  --primary-100-hex: #D5E1F9;
+  --primary-200-hex: #ADC5F4;
+  --primary-300-hex: #84A8EF;
+  --primary-400-hex: #5C8CE9;
+  --primary-500-hex: #336FE4;
+  --primary-600-hex: #1A54C5;
+  --primary-700-hex: #133F93;
+  --primary-800-hex: #0D2A62;
+  --primary-900-hex: #061530;
+  --primary-950-hex: #030A17;
+
+  /* Secondary */
+  --secondary-50-hex: #FDF1EE;
+  --secondary-100-hex: #FCDFD9;
+  --secondary-200-hex: #F8BBAF;
+  --secondary-300-hex: #F49785;
+  --secondary-400-hex: #F0735B;
+  --secondary-500-hex: #EC4F31;
+  --secondary-600-hex: #C93C21;
+  --secondary-700-hex: #A02D17;
+  --secondary-800-hex: #742010;
+  --secondary-900-hex: #47140A;
+  --secondary-950-hex: #310D06;
+
+  /* Tertiary */
+  --tertiary-50-hex: #FEFAED;
+  --tertiary-100-hex: #FCF4D8;
+  --tertiary-200-hex: #F9E9AD;
+  --tertiary-300-hex: #F5DE82;
+  --tertiary-400-hex: #F2D258;
+  --tertiary-500-hex: #EFC72D;
+  --tertiary-600-hex: #D9AF10;
+  --tertiary-700-hex: #A9890D;
+  --tertiary-800-hex: #7A6309;
+  --tertiary-900-hex: #4A3C06;
+  --tertiary-950-hex: #332904;
+
+  /* Alert */
+  --alert-50-hex: #F9DBE2;
+  --alert-100-hex: #F6C7D3;
+  --alert-200-hex: #F09FB3;
+  --alert-300-hex: #EA7893;
+  --alert-400-hex: #E45074;
+  --alert-500-hex: #DE2854;
+  --alert-600-hex: #B31B40;
+  --alert-700-hex: #82142F;
+  --alert-800-hex: #510C1D;
+  --alert-900-hex: #21050C;
+  --alert-950-hex: #080103;
+
+  /* Success */
+  --success-50-hex: #E6F9EF;
+  --success-100-hex: #CDF4DF;
+  --success-200-hex: #9BE8BE;
+  --success-300-hex: #6ADD9E;
+  --success-400-hex: #38D17D;
+  --success-500-hex: #26A660;
+  --success-600-hex: #1E854D;
+  --success-700-hex: #17643A;
+  --success-800-hex: #0F4226;
+  --success-900-hex: #082113;
+  --success-950-hex: #04110A;
+
+  /* Neutral (Tailwind gray) */
+  --neutral-50-hex: #FAFAFA;
+  --neutral-100-hex: #F5F5F5;
+  --neutral-200-hex: #E5E5E5;
+  --neutral-300-hex: #D4D4D4;
+  --neutral-400-hex: #A3A3A3;
+  --neutral-500-hex: #737373;
+  --neutral-600-hex: #525252;
+  --neutral-700-hex: #404040;
+  --neutral-800-hex: #262626;
+  --neutral-900-hex: #171717;
+  --neutral-950-hex: #0A0A0A;
+}
+

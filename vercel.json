@@ -1,0 +1,9 @@
+{
+  "crons": [
+    {
+      "path": "/api/jobs/run-newsletters",
+      "schedule": "0 13 * * *"
+    }
+  ]
+}
+
