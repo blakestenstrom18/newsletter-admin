@@ -4,6 +4,8 @@ import { customerConfig } from '@/db/schema';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
+export const dynamic = 'force-dynamic';
+
 export default async function CustomersPage() {
   const customers = await db.query.customerConfig.findMany({
     orderBy: (c, { asc }) => [asc(c.name)],

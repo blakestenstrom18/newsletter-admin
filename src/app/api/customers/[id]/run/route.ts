@@ -6,8 +6,9 @@ import { generateAndPersistNewsletter } from '@/services/newsletter';
 
 export const runtime = 'nodejs';
 
-export async function POST(_: NextRequest, { params }: { params: { id: string } }) {
-  const [cust] = await db.select().from(customerConfig).where(eq(customerConfig.id, params.id));
+export async function POST(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const [cust] = await db.select().from(customerConfig).where(eq(customerConfig.id, id));
   if (!cust) return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
 
   const [run] = await db.insert(newsletterRun).values({

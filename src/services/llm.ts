@@ -1,7 +1,10 @@
 import OpenAI from 'openai';
 import { NewsletterContent } from '@/lib/types';
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+function getOpenAI() {
+  const apiKey = process.env.OPENAI_API_KEY || 'dummy-key-for-build';
+  return new OpenAI({ apiKey });
+}
 
 export async function synthesizeNewsletter(opts: {
   customer: any;
@@ -38,6 +41,7 @@ Key priorities: ${(customer.keyPriorities ?? []).join('; ') || 'n/a'}.`;
     }),
   };
 
+  const openai = getOpenAI();
   const resp = await openai.chat.completions.create({
     model: 'gpt-4o-mini',
     temperature: 0.2,

@@ -30,12 +30,22 @@ const FormSchema = z.object({
   internalDocUrl: z.string().url().optional().or(z.literal('')),
 });
 
-type FormValues = z.infer<typeof FormSchema>;
+type FormValues = z.input<typeof FormSchema>;
 
 export default function CustomerForm({ initial, isEdit = false, customerId }: { initial?: Partial<FormValues>; isEdit?: boolean; customerId?: string }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const form = useForm<FormValues>({ resolver: zodResolver(FormSchema), defaultValues: initial });
+  const form = useForm<FormValues>({ 
+    resolver: zodResolver(FormSchema), 
+    defaultValues: {
+      active: true,
+      frequency: 'biweekly',
+      timezone: 'America/Denver',
+      tone: 'friendly_exec',
+      maxItemsPerSection: 4,
+      ...initial,
+    } 
+  });
 
   async function onSubmit(values: FormValues) {
     setLoading(true);
