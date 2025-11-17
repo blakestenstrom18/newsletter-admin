@@ -12,12 +12,15 @@ import Link from 'next/link';
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export default function CustomerDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const params = useParams<{ id: string }>();
+  const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const router = useRouter();
-  const { data, mutate } = useSWR(`/api/customers/${id}`, fetcher);
+  const { data, mutate } = useSWR(id ? `/api/customers/${id}` : null, fetcher);
+  const { data: newsletters, mutate: mutateNewsletters } = useSWR(id ? `/api/customers/${id}/newsletters` : null, fetcher);
   const [running, setRunning] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
 
+  if (!id) return <div>Loading...</div>;
   if (!data) return <div>Loading...</div>;
 
   async function runNow() {
@@ -35,7 +38,8 @@ export default function CustomerDetailPage() {
         ? `View in app or Google Docs: ${j.googleDocUrl}`
         : 'Newsletter generated and stored in database';
       toast.success('Newsletter generated', { description: message });
-      mutate();
+      mutate(); // Refresh customer data
+      mutateNewsletters(); // Refresh newsletter list
     } catch (err) {
       setRunning(false);
       toast.error('Generation failed', { description: String(err) });
@@ -62,8 +66,6 @@ export default function CustomerDetailPage() {
       </div>
     );
   }
-
-  const { data: newsletters } = useSWR(`/api/customers/${id}/newsletters`, fetcher);
 
   return (
     <div className="space-y-6">

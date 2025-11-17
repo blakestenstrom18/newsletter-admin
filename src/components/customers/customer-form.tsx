@@ -71,7 +71,6 @@ export default function CustomerForm({ initial, isEdit = false, customerId }: { 
       const created = await r.json();
       toast.success(isEdit ? 'Customer updated' : 'Customer created');
       router.push(`/customers/${created.id}`);
-      router.refresh();
     } catch (err) {
       setLoading(false);
       toast.error('Failed to save', { description: String(err) });
