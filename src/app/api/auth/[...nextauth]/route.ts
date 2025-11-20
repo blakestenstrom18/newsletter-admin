@@ -56,6 +56,10 @@ function buildProfile(user: UserAccount) {
   };
 }
 
+function isUserRole(value: unknown): value is UserAccount['role'] {
+  return value === 'admin' || value === 'user';
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
@@ -113,8 +117,8 @@ export const authOptions: NextAuthOptions = {
         if (token.email) {
           session.user.email = token.email as string;
         }
-        if (token.role) {
-          session.user.role = token.role as string;
+        if (isUserRole(token.role)) {
+          session.user.role = token.role;
         }
       }
       return session;
@@ -123,8 +127,12 @@ export const authOptions: NextAuthOptions = {
       if (user?.email) {
         token.email = user.email.toLowerCase();
       }
-      if (user && 'role' in user && user.role) {
-        token.role = user.role;
+      if (
+        user &&
+        'role' in user &&
+        isUserRole((user as { role?: unknown }).role)
+      ) {
+        token.role = (user as { role?: UserAccount['role'] }).role;
       }
       return token;
     },

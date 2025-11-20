@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import nextAuthMiddleware from 'next-auth/middleware';
+import { withAuth } from 'next-auth/middleware';
+import type { NextRequestWithAuth } from 'next-auth/middleware';
 
 const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute buckets
 const RATE_LIMIT_MAX_REQUESTS = 15; // per bucket
@@ -17,7 +18,17 @@ function getClientKey(request: NextRequest) {
   if (forwardedFor) {
     return forwardedFor.split(',')[0]?.trim() || 'unknown';
   }
-  return request.ip ?? 'unknown';
+
+  const realIp =
+    request.headers.get('x-real-ip') ||
+    request.headers.get('cf-connecting-ip') ||
+    request.headers.get('fastly-client-ip');
+
+  if (realIp) {
+    return realIp;
+  }
+
+  return request.nextUrl.hostname || 'unknown';
 }
 
 function isRateLimited(key: string) {
@@ -33,22 +44,39 @@ function isRateLimited(key: string) {
   return existing.count > RATE_LIMIT_MAX_REQUESTS;
 }
 
-export default function middleware(request: NextRequest) {
-  if (request.nextUrl.pathname.startsWith('/api/auth')) {
-    const key = getClientKey(request);
+const middleware = withAuth(
+  function middleware(request: NextRequestWithAuth) {
+    if (request.nextUrl.pathname.startsWith('/api/auth')) {
+      const key = getClientKey(request);
 
-    if (isRateLimited(key)) {
-      return NextResponse.json(
-        { message: 'Too many authentication attempts. Please wait a minute.' },
-        { status: 429 },
-      );
+      if (isRateLimited(key)) {
+        return NextResponse.json(
+          { message: 'Too many authentication attempts. Please wait a minute.' },
+          { status: 429 },
+        );
+      }
+
+      return NextResponse.next();
     }
 
     return NextResponse.next();
-  }
+  },
+  {
+    pages: {
+      signIn: '/auth/signin',
+    },
+    callbacks: {
+      authorized: ({ token, req }) => {
+        if (req.nextUrl.pathname.startsWith('/api/auth')) {
+          return true;
+        }
+        return !!token;
+      },
+    },
+  },
+);
 
-  return nextAuthMiddleware(request);
-}
+export default middleware;
 
 export const config = {
   matcher: [
