@@ -2,6 +2,7 @@ import './globals.css';
 import { ReactNode } from 'react';
 import { Toaster } from '@/components/ui/sonner';
 import { ThemeToggle } from '@/components/theme-toggle';
+import Link from 'next/link';
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
@@ -23,7 +24,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body className={`${geistSans.variable} ${geistMono.variable} min-h-screen bg-background text-foreground antialiased`}>
         <div className="mx-auto max-w-7xl p-6">
           <div className="mb-6 flex items-center justify-between">
-            <h1 className="text-2xl font-semibold">Customer Newsletters</h1>
+            <Link href="/" className="text-2xl font-semibold hover:opacity-80 transition-opacity">
+              Customer Newsletters
+            </Link>
             <ThemeToggle />
           </div>
           {children}

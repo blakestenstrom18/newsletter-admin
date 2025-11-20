@@ -1,44 +1,93 @@
-type NewsArticle = { title: string; url: string; description?: string; source?: string };
+import type { customerConfig } from '@/db/schema';
+import { runNewsResearch, type DeepResearchPayload } from './deepResearch';
 
-const NEWS_BASE = 'https://newsapi.org/v2/everything';
+export type NewsArticle = { title: string; url: string; description?: string; source?: string };
 
-async function fetchNews(q: string, fromIso: string) {
-  const url = new URL(NEWS_BASE);
-  url.searchParams.set('q', q);
-  url.searchParams.set('from', fromIso);
-  url.searchParams.set('sortBy', 'publishedAt');
-  url.searchParams.set('language', 'en');
-  url.searchParams.set('pageSize', '10');
-  url.searchParams.set('apiKey', process.env.NEWS_API_KEY!);
+type CustomerRecord = typeof customerConfig.$inferSelect;
 
-  const r = await fetch(url.toString());
-  if (!r.ok) throw new Error(`News API error: ${r.status}`);
-  const data = await r.json();
-  return (data.articles ?? []).map((a: any) => ({
-    title: a.title, url: a.url, description: a.description, source: a.source?.name,
-  })) as NewsArticle[];
+export type NewsResearchBundle = {
+  customerNews: NewsArticle[];
+  competitorNews: NewsArticle[];
+  industryTrends: NewsArticle[];
+  responseId: string;
+  payload: DeepResearchPayload;
+  rawText: string;
+};
+
+const researchCache = new WeakMap<object, Promise<NewsResearchBundle>>();
+
+export async function fetchCustomerNews(customer: CustomerRecord) {
+  return (await getResearchBundle(customer)).customerNews;
 }
 
-export async function fetchCustomerNews(customer: any) {
-  const from = new Date(Date.now() - 14 * 864e5).toISOString().slice(0, 10);
-  const terms = (customer.newsKeywords?.length ? customer.newsKeywords : [customer.name]).slice(0, 3);
-  const lists = await Promise.all(terms.map((q: string) => fetchNews(q, from)));
+export async function fetchCompetitorNews(customer: CustomerRecord) {
+  return (await getResearchBundle(customer)).competitorNews;
+}
+
+export async function fetchIndustryTrends(customer: CustomerRecord) {
+  return (await getResearchBundle(customer)).industryTrends;
+}
+
+export async function fetchResearchBundle(customer: CustomerRecord) {
+  return getResearchBundle(customer);
+}
+
+async function getResearchBundle(customer: CustomerRecord): Promise<NewsResearchBundle> {
+  const key = customer as unknown as object;
+  let existing = researchCache.get(key);
+  if (!existing) {
+    existing = runAndNormalize(customer);
+    researchCache.set(key, existing);
+  }
+  return existing;
+}
+
+async function runAndNormalize(customer: CustomerRecord): Promise<NewsResearchBundle> {
+  const research = await runNewsResearch(customer);
+  return {
+    responseId: research.responseId,
+    payload: research.payload,
+    rawText: research.rawText,
+    customerNews: normalizeSection(research.payload.customerNews, 15),
+    competitorNews: normalizeSection(research.payload.competitorNews, 10),
+    industryTrends: normalizeSection(research.payload.industryTrends, 15),
+  };
+}
+
+function normalizeSection(items: Array<{ title?: string; url?: string; summary?: string; source?: string }> = [], limit: number) {
   const dedup = new Map<string, NewsArticle>();
-  for (const list of lists) for (const a of list) if (!dedup.has(a.url)) dedup.set(a.url, a);
-  return Array.from(dedup.values()).slice(0, 15);
+  for (const item of items) {
+    if (!item) continue;
+    const url = normalizeUrl(item.url);
+    const title = (item.title || '').trim();
+    if (!url || !title) continue;
+    const key = url.toLowerCase();
+    if (dedup.has(key)) continue;
+    dedup.set(key, {
+      title,
+      url,
+      description: item.summary?.trim(),
+      source: item.source?.trim() || deriveSourceFromUrl(url),
+    });
+  }
+  return Array.from(dedup.values()).slice(0, limit);
 }
 
-export async function fetchCompetitorNews(competitors: string[]) {
-  const from = new Date(Date.now() - 14 * 864e5).toISOString().slice(0, 10);
-  const lists = await Promise.all(competitors.slice(0, 5).map((q) => fetchNews(q, from)));
-  const dedup = new Map<string, NewsArticle>();
-  for (const list of lists) for (const a of list) if (!dedup.has(a.url)) dedup.set(a.url, a);
-  return Array.from(dedup.values()).slice(0, 10);
+function normalizeUrl(url?: string | null) {
+  if (!url) return undefined;
+  try {
+    const parsed = new URL(url);
+    return parsed.toString();
+  } catch {
+    return undefined;
+  }
 }
 
-export async function fetchIndustryTrends(industry: string, subVerticals: string[] = []) {
-  const from = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
-  const q = [industry, ...subVerticals.map((s) => `${s} ${industry}`)].join(' OR ');
-  return fetchNews(q, from);
+function deriveSourceFromUrl(url: string) {
+  try {
+    const hostname = new URL(url).hostname.replace(/^www\./, '');
+    return hostname;
+  } catch {
+    return 'source';
+  }
 }
-

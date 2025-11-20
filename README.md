@@ -10,13 +10,15 @@ Internal admin portal for generating biweekly customer newsletters using AI.
    ```
 
 2. **Set up environment variables:**
-   Copy `.env.local.example` to `.env.local` and fill in all required values:
-   - NextAuth configuration (Google OAuth)
+   Copy `.env.local.example` to `.env.local` (see `ENV_VARIABLES.md` for the full list) and fill in:
+   - NextAuth config: `NEXTAUTH_URL`, `NEXTAUTH_SECRET`
+   - Auth tuning: `AUTH_BCRYPT_ROUNDS`, `AUTH_MAX_FAILED_ATTEMPTS`
    - Neon Postgres database URL
    - OpenAI API key
-   - Google Service Account credentials
-   - News API key
+   - Deep research config: `DEEP_RESEARCH_MODEL`, `DEEP_RESEARCH_TIMEOUT_MS`, `DEEP_RESEARCH_MAX_WAIT_MS`
+   - Google Service Account credentials (optional, for Docs export)
    - Cron secret
+   - `NEWS_API_KEY` is optional and only needed for the legacy fallback
 
 3. **Set up database:**
    ```bash
@@ -27,7 +29,13 @@ Internal admin portal for generating biweekly customer newsletters using AI.
    npx drizzle-kit push
    ```
 
-4. **Run development server:**
+4. **Create your first admin user:**
+   ```bash
+   npm run users:create
+   ```
+   The script prompts for email, password, role, and active state. Run it again any time you need to onboard or update a teammate.
+
+5. **Run development server:**
    ```bash
    npm run dev
    ```
@@ -38,9 +46,10 @@ Internal admin portal for generating biweekly customer newsletters using AI.
 - ✅ Manual newsletter generation
 - ✅ Scheduled newsletter generation via Vercel Cron
 - ✅ Google Docs integration
-- ✅ News API integration
+- ✅ Deep research-powered news aggregation (OpenAI Responses API)
+- ✅ News API fallback (optional)
 - ✅ OpenAI-powered content synthesis
-- ✅ NextAuth with Google provider
+- ✅ Secure username/password auth (NextAuth Credentials provider)
 - ✅ Iterate brand theming
 
 ## Project Structure
@@ -57,4 +66,4 @@ Internal admin portal for generating biweekly customer newsletters using AI.
 1. Configure Vercel Cron job to call `/api/jobs/run-newsletters` with Authorization header
 2. Set up Google Service Account and share Drive folder
 3. Seed `internal_update` table with Iterate.ai updates
-4. Add customers via the UI
+4. Invite teammates by creating accounts via `npm run users:create`

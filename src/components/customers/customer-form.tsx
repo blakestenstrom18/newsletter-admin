@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -100,11 +101,42 @@ export default function CustomerForm({ initial, isEdit = false, customerId }: { 
         </div>
         <div>
           <Label>Frequency</Label>
-          <Input {...form.register('frequency')} placeholder="biweekly" />
+          <Select
+            value={form.watch('frequency')}
+            onValueChange={(value) => form.setValue('frequency', value as 'weekly' | 'biweekly' | 'monthly')}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select frequency" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="weekly">Weekly</SelectItem>
+              <SelectItem value="biweekly">Biweekly</SelectItem>
+              <SelectItem value="monthly">Monthly</SelectItem>
+            </SelectContent>
+          </Select>
+          {form.formState.errors.frequency && (
+            <p className="text-sm text-destructive">{form.formState.errors.frequency.message}</p>
+          )}
         </div>
         <div>
           <Label>Tone</Label>
-          <Input {...form.register('tone')} placeholder="friendly_exec" />
+          <Select
+            value={form.watch('tone')}
+            onValueChange={(value) => form.setValue('tone', value as 'formal' | 'consultative' | 'friendly_exec' | 'concise')}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select tone" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="formal">Formal</SelectItem>
+              <SelectItem value="consultative">Consultative</SelectItem>
+              <SelectItem value="friendly_exec">Friendly Executive</SelectItem>
+              <SelectItem value="concise">Concise</SelectItem>
+            </SelectContent>
+          </Select>
+          {form.formState.errors.tone && (
+            <p className="text-sm text-destructive">{form.formState.errors.tone.message}</p>
+          )}
         </div>
         <div>
           <Label>Max Items / Section</Label>
@@ -131,11 +163,37 @@ export default function CustomerForm({ initial, isEdit = false, customerId }: { 
           <Textarea rows={3} {...form.register('currentInitiatives')} />
         </div>
         <div className="md:col-span-2">
+          <Label>Account Owner Name</Label>
+          <Input {...form.register('accountOwnerName')} placeholder="John Doe" />
+        </div>
+        <div className="md:col-span-2">
+          <Label>Account Owner Email</Label>
+          <Input {...form.register('accountOwnerEmail')} type="email" placeholder="john@example.com" />
+          {form.formState.errors.accountOwnerEmail && (
+            <p className="text-sm text-destructive">{form.formState.errors.accountOwnerEmail.message}</p>
+          )}
+        </div>
+        <div className="md:col-span-2">
           <Label>Internal Doc URL</Label>
-          <Input {...form.register('internalDocUrl')} />
+          <Input {...form.register('internalDocUrl')} placeholder="https://..." />
+          {form.formState.errors.internalDocUrl && (
+            <p className="text-sm text-destructive">{form.formState.errors.internalDocUrl.message}</p>
+          )}
         </div>
       </div>
-      <Button type="submit" disabled={loading}>{loading ? 'Saving...' : 'Save'}</Button>
+      <div className="flex gap-2">
+        <Button type="submit" disabled={loading}>{loading ? 'Saving...' : 'Save'}</Button>
+        {isEdit && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => router.push(`/customers/${customerId}`)}
+            disabled={loading}
+          >
+            Cancel
+          </Button>
+        )}
+      </div>
     </form>
   );
 }

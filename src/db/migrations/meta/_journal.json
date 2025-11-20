@@ -8,6 +8,20 @@
       "when": 1763409992635,
       "tag": "0000_flaky_yellow_claw",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1763664506572,
+      "tag": "0001_add_deep_research_metadata",
+      "breakpoints": false
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1763667740803,
+      "tag": "0002_reflective_mojo",
+      "breakpoints": true
     }
   ]
 }

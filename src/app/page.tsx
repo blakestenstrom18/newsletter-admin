@@ -1,11 +1,15 @@
 import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+
 export default function Home() {
   return (
     <main className="space-y-6">
-      <h1 className="text-3xl font-semibold">Customer Newsletters</h1>
-      <p className="text-muted-foreground">Internal admin portal</p>
       <div>
-        <Link className="underline" href="/customers">Go to Customers →</Link>
+        <p className="text-muted-foreground mb-4">Internal admin portal for generating customer newsletters</p>
+        <Link href="/customers">
+          <Button size="lg">Go to Customers</Button>
+        </Link>
       </div>
     </main>
   );

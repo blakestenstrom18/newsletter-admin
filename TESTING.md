@@ -61,7 +61,7 @@ Expanding digital capabilities, enhancing in-store experience, launching new bea
 
 2. **Navigate to the app:**
    - Open `http://localhost:3000`
-   - Sign in with an authorized email (from your `ALLOWED_EMAILS` or `ALLOWED_DOMAIN`)
+   - Sign in with one of the accounts you provisioned via `npm run users:create`
 
 3. **Go to Customers:**
    - Click "Go to Customers →" or navigate to `/customers`
@@ -85,12 +85,12 @@ Expanding digital capabilities, enhancing in-store experience, launching new bea
 
 2. **Wait for generation:**
    - The button will show "Running..." while processing
-   - This may take 30-60 seconds as it:
-     - Fetches news from News API
-     - Fetches competitor news
-     - Fetches industry trends
-     - Generates content with OpenAI
-     - Stores the newsletter in the database
+   - This now takes several minutes because it:
+     - Launches an OpenAI Deep Research run (web-search powered)
+     - Polls until the background task completes (up to the configured max wait)
+     - Summarizes results into customer, competitor, and industry sections
+     - Generates the final newsletter draft with the LLM
+     - Stores the newsletter plus research metadata in the database
 
 3. **View the newsletter:**
    - After generation completes, you'll see a success toast
@@ -128,16 +128,29 @@ The generated newsletter will include:
 
 **Check:**
 1. ✅ OpenAI API key is set in `.env.local`
-2. ✅ News API key is set in `.env.local`
+2. ✅ Deep research env values (`DEEP_RESEARCH_*`) are set
 3. ✅ Database connection is working
 4. ✅ Check browser console for errors
 5. ✅ Check server logs in terminal
+6. ✅ Inspect the `newsletter_run.research_response_id` column to confirm polling finished
 
 ### No news found
 
-- News API has rate limits on free tier
-- Try different keywords or wait a bit
-- The newsletter will still generate with available data
+- Deep research may need more specific customer keywords or competitors
+- Update the customer profile with richer `newsKeywords` or `competitors`
+- Re-run after adjusting inputs; partial data is still accepted
+
+### Inspecting deep research metadata
+
+- Each `newsletter_run` row now stores `research_response_id` (from OpenAI) and `research_payload`
+- The payload contains the structured JSON returned by deep research plus the raw text
+- Query example:
+  ```sql
+  select id, research_response_id, research_payload
+  from newsletter_run
+  order by created_at desc
+  limit 5;
+  ```
 
 ### Newsletter content is empty
 

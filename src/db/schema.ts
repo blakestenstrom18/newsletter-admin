@@ -1,9 +1,34 @@
 import {
-  pgTable, text, varchar, boolean, timestamp, jsonb, uuid, integer, pgEnum
+  pgTable,
+  text,
+  varchar,
+  boolean,
+  timestamp,
+  jsonb,
+  uuid,
+  integer,
+  pgEnum,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
 export const frequencyEnum = pgEnum('frequency', ['weekly','biweekly','monthly']);
 export const toneEnum = pgEnum('tone', ['formal','consultative','friendly_exec','concise']);
+export const userRoleEnum = pgEnum('user_role', ['admin','user']);
+
+export const userAccount = pgTable('user_account', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  email: varchar('email', { length: 256 }).notNull(),
+  username: varchar('username', { length: 128 }),
+  passwordHash: varchar('password_hash', { length: 255 }).notNull(),
+  role: userRoleEnum('role').notNull().default('user'),
+  isActive: boolean('is_active').notNull().default(true),
+  failedLoginAttempts: integer('failed_login_attempts').notNull().default(0),
+  lockedAt: timestamp('locked_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  emailIdx: uniqueIndex('user_account_email_idx').on(table.email),
+}));
 
 export const customerConfig = pgTable('customer_config', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -69,6 +94,15 @@ export const newsletterRun = pgTable('newsletter_run', {
   // Google Drive fields (optional - only used if Google credentials are provided)
   googleDocId: varchar('google_doc_id', { length: 128 }),
   googleDocUrl: varchar('google_doc_url', { length: 512 }),
+  researchResponseId: varchar('research_response_id', { length: 128 }),
+  researchPayload: jsonb('research_payload').$type<{
+    structured?: {
+      customerNews?: Array<Record<string, unknown>>;
+      competitorNews?: Array<Record<string, unknown>>;
+      industryTrends?: Array<Record<string, unknown>>;
+    };
+    rawText?: string;
+  }>(),
   startedAt: timestamp('started_at', { withTimezone: true }).defaultNow(),
   finishedAt: timestamp('finished_at', { withTimezone: true }),
 });

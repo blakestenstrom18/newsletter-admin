@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ArrowLeft, FileText, ExternalLink } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,12 +35,26 @@ export default async function NewsletterViewPage({
 
   if (!run.content) {
     return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold">Newsletter</h1>
-          <Link href={`/customers/${id}`}>
-            <Button variant="outline">Back to Customer</Button>
-          </Link>
+      <div className="space-y-6">
+        <div>
+          <nav className="text-sm text-muted-foreground mb-2">
+            <Link href="/" className="hover:text-foreground">Home</Link>
+            <span className="mx-2">/</span>
+            <Link href="/customers" className="hover:text-foreground">Customers</Link>
+            <span className="mx-2">/</span>
+            <Link href={`/customers/${id}`} className="hover:text-foreground">{customer?.name}</Link>
+            <span className="mx-2">/</span>
+            <span className="text-foreground">Newsletter</span>
+          </nav>
+          <div className="flex items-center justify-between">
+            <h1 className="text-3xl font-semibold">Newsletter</h1>
+            <Link href={`/customers/${id}`}>
+              <Button variant="outline">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to Customer
+              </Button>
+            </Link>
+          </div>
         </div>
         <Card>
           <CardContent className="pt-6">
@@ -62,22 +77,37 @@ export default async function NewsletterViewPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">{customer?.name} Newsletter</h1>
-          <p className="text-muted-foreground">Generated {generatedDate}</p>
-        </div>
-        <div className="flex gap-2">
-          {run.googleDocUrl && (
-            <Button asChild variant="outline">
-              <a href={run.googleDocUrl} target="_blank" rel="noopener noreferrer">
-                View in Google Docs
-              </a>
-            </Button>
-          )}
-          <Link href={`/customers/${id}`}>
-            <Button variant="outline">Back to Customer</Button>
-          </Link>
+      <div>
+        <nav className="text-sm text-muted-foreground mb-2">
+          <Link href="/" className="hover:text-foreground">Home</Link>
+          <span className="mx-2">/</span>
+          <Link href="/customers" className="hover:text-foreground">Customers</Link>
+          <span className="mx-2">/</span>
+          <Link href={`/customers/${id}`} className="hover:text-foreground">{customer?.name}</Link>
+          <span className="mx-2">/</span>
+          <span className="text-foreground">Newsletter</span>
+        </nav>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-semibold">{customer?.name} Newsletter</h1>
+            <p className="text-muted-foreground mt-1">Generated {generatedDate}</p>
+          </div>
+          <div className="flex gap-2">
+            {run.googleDocUrl && (
+              <Button asChild variant="outline">
+                <a href={run.googleDocUrl} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  View in Google Docs
+                </a>
+              </Button>
+            )}
+            <Link href={`/customers/${id}`}>
+              <Button variant="outline">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to Customer
+              </Button>
+            </Link>
+          </div>
         </div>
       </div>
 

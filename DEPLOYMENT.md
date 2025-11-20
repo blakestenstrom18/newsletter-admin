@@ -63,15 +63,19 @@ Complete step-by-step guide for deploying the Customer Newsletter Admin to Verce
 
 2. **Add All Environment Variables**
 
-   **Auth / NextAuth:**
-   ```
-   NEXTAUTH_URL=https://your-project.vercel.app
-   NEXTAUTH_SECRET=<generate-random-secret>
-   GOOGLE_CLIENT_ID=<from-google-cloud>
-   GOOGLE_CLIENT_SECRET=<from-google-cloud>
-   ALLOWED_EMAILS=alice@iterate.ai,bob@iterate.ai
-   ALLOWED_DOMAIN=iterate.ai
-   ```
+  **Auth / NextAuth:**
+  ```
+  NEXTAUTH_URL=https://your-project.vercel.app
+  NEXTAUTH_SECRET=<generate-random-secret>
+  AUTH_BCRYPT_ROUNDS=10
+  AUTH_MAX_FAILED_ATTEMPTS=5
+  ```
+
+  **Optional Google OAuth (only if you still need Google login):**
+  ```
+  GOOGLE_CLIENT_ID=<from-google-cloud>
+  GOOGLE_CLIENT_SECRET=<from-google-cloud>
+  ```
 
    **Database:**
    ```
@@ -95,9 +99,16 @@ Complete step-by-step guide for deploying the Customer Newsletter Admin to Verce
    GOOGLE_DRIVE_PARENT_FOLDER_ID=<folder-id-from-google-drive>
    ```
 
-   **News API:**
+   **Deep Research:**
    ```
-   NEWS_API_KEY=<your-news-api-key>
+   DEEP_RESEARCH_MODEL=o3-deep-research
+   DEEP_RESEARCH_TIMEOUT_MS=3600000
+   DEEP_RESEARCH_MAX_WAIT_MS=900000
+   ```
+
+   **News API (Legacy fallback - optional):**
+   ```
+   # NEWS_API_KEY=<your-news-api-key>
    ```
 
 3. **Generate Secrets**
@@ -312,9 +323,9 @@ Complete step-by-step guide for deploying the Customer Newsletter Admin to Verce
 
 ### Newsletter Generation Fails
 - Check Vercel function logs (Runtime Logs in dashboard)
-- Verify all API keys are set correctly
-- Check OpenAI API quota/limits
-- Verify News API key is valid
+- Verify OpenAI and deep research env values are set correctly
+- Confirm OpenAI API quota/limits and MCP/web-search entitlements
+- (Optional) If falling back to NewsAPI, verify `NEWS_API_KEY` is valid
 
 ---
 
@@ -323,16 +334,20 @@ Complete step-by-step guide for deploying the Customer Newsletter Admin to Verce
 ```
 ✅ NEXTAUTH_URL
 ✅ NEXTAUTH_SECRET
+✅ AUTH_BCRYPT_ROUNDS
+✅ AUTH_MAX_FAILED_ATTEMPTS
 ✅ GOOGLE_CLIENT_ID
 ✅ GOOGLE_CLIENT_SECRET
-✅ ALLOWED_EMAILS (or ALLOWED_DOMAIN)
 ✅ DATABASE_URL
 ✅ CRON_SECRET
 ✅ OPENAI_API_KEY
 ✅ GOOGLE_SERVICE_ACCOUNT_EMAIL
 ✅ GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY
 ✅ GOOGLE_DRIVE_PARENT_FOLDER_ID
-✅ NEWS_API_KEY
+✅ DEEP_RESEARCH_MODEL
+✅ DEEP_RESEARCH_TIMEOUT_MS
+✅ DEEP_RESEARCH_MAX_WAIT_MS
+☑️ NEWS_API_KEY (optional fallback)
 ```
 
 ---

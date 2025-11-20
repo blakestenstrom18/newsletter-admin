@@ -14,6 +14,7 @@ function SignInForm() {
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get('callbackUrl') || '/customers';
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -23,12 +24,13 @@ function SignInForm() {
     try {
       const result = await signIn('credentials', {
         email,
+        password,
         redirect: false,
       });
 
       if (result?.error) {
         toast.error('Authentication failed', {
-          description: 'Your email is not authorized to access this application.',
+          description: result.error,
         });
         setLoading(false);
       } else if (result?.ok) {
@@ -44,12 +46,12 @@ function SignInForm() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
+    <div className="flex items-center justify-center py-12">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Sign In</CardTitle>
           <CardDescription>
-            Enter your email address to access the newsletter admin portal
+            Enter your email and password to access the newsletter admin portal.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -67,12 +69,24 @@ function SignInForm() {
                 autoFocus
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                disabled={loading}
+              />
+            </div>
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? 'Signing in...' : 'Sign In'}
             </Button>
           </form>
           <p className="mt-4 text-sm text-muted-foreground">
-            Only authorized email addresses can access this application.
+            Accounts are provisioned manually. Contact an admin if you need help.
           </p>
         </CardContent>
       </Card>

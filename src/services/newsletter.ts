@@ -1,25 +1,23 @@
 import { db } from '@/db';
 import { newsletterRun, customerConfig } from '@/db/schema';
 import { eq } from 'drizzle-orm';
-import { fetchCustomerNews, fetchCompetitorNews, fetchIndustryTrends } from './news';
+import { fetchResearchBundle } from './news';
 import { fetchIterateUpdates } from './iterate';
 import { synthesizeNewsletter } from './llm';
 import { createNewsletterDoc } from './google';
 
 export async function generateAndPersistNewsletter(opts: { customer: any; runId: string }) {
   const { customer, runId } = opts;
-  const [custNews, compNews, industry, iter] = await Promise.all([
-    fetchCustomerNews(customer),
-    fetchCompetitorNews(customer.competitors ?? []),
-    fetchIndustryTrends(customer.industry, customer.subVerticals ?? []),
+  const [newsBundle, iter] = await Promise.all([
+    fetchResearchBundle(customer),
     fetchIterateUpdates(6),
   ]);
 
   const content = await synthesizeNewsletter({
     customer,
-    customerNews: custNews,
-    competitorNews: compNews,
-    industryTrends: industry,
+    customerNews: newsBundle.customerNews,
+    competitorNews: newsBundle.competitorNews,
+    industryTrends: newsBundle.industryTrends,
     iterateUpdates: iter,
   });
 
@@ -29,6 +27,13 @@ export async function generateAndPersistNewsletter(opts: { customer: any; runId:
     content: content,
     finishedAt: new Date(),
   };
+  if (newsBundle.responseId) {
+    updateData.researchResponseId = newsBundle.responseId;
+    updateData.researchPayload = {
+      structured: newsBundle.payload,
+      rawText: newsBundle.rawText,
+    };
+  }
 
   // Optionally create Google Doc if credentials are available
   try {
