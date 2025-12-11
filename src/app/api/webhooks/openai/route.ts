@@ -7,35 +7,12 @@ import { extractPayloadFromWebhook } from '@/services/deepResearch';
 
 export const runtime = 'nodejs';
 
-/**
- * POST /api/webhooks/openai
- * Webhook endpoint that OpenAI calls when a deep research background task completes.
- * Configure this URL in your OpenAI dashboard under Webhooks.
- */
-export async function POST(req: NextRequest) {
-  // Log headers for debugging (OpenAI webhook verification)
-  const headers: Record<string, string> = {};
-  req.headers.forEach((value, key) => {
-    headers[key] = key.toLowerCase().includes('secret') || key.toLowerCase().includes('auth') 
-      ? '[REDACTED]' 
-      : value;
-  });
-  console.info('[webhook] Received request with headers:', JSON.stringify(headers));
-
-  // Note: OpenAI webhook verification is handled by checking that the responseId
-  // exists in our database. Additional secret verification can be added if needed.
-
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    console.error('[webhook] Failed to parse request body');
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
-  }
-
-  // OpenAI sends the response object directly
-  const response = body as {
-    id?: string;
+// OpenAI webhook event structure
+type WebhookEvent = {
+  id: string;           // Event ID (evt_xxx)
+  type: string;         // e.g., "response.completed", "response.failed"
+  data: {
+    id: string;         // Response ID (resp_xxx) - this is what we stored
     status?: string;
     output?: Array<{
       type: string;
@@ -46,14 +23,49 @@ export async function POST(req: NextRequest) {
     }>;
     error?: { message?: string };
   };
+};
 
-  const responseId = response?.id;
-  if (!responseId) {
-    console.error('[webhook] Missing response ID in payload');
-    return NextResponse.json({ error: 'Missing response ID' }, { status: 400 });
+/**
+ * POST /api/webhooks/openai
+ * Webhook endpoint that OpenAI calls when a deep research background task completes.
+ * Configure this URL in your OpenAI dashboard under Webhooks.
+ */
+export async function POST(req: NextRequest) {
+  // Log headers for debugging
+  const headers: Record<string, string> = {};
+  req.headers.forEach((value, key) => {
+    if (!key.toLowerCase().includes('secret') && !key.toLowerCase().includes('auth') && !key.toLowerCase().includes('token')) {
+      headers[key] = value;
+    }
+  });
+  console.info('[webhook] Received request with headers:', JSON.stringify(headers));
+
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    console.error('[webhook] Failed to parse request body');
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  console.info(`[webhook] received callback for responseId=${responseId}, status=${response.status}`);
+  // Log the full body for debugging
+  console.info('[webhook] Received body:', JSON.stringify(body));
+
+  // OpenAI sends events with the response nested in `data`
+  const event = body as WebhookEvent;
+  
+  // Extract the actual response from the event data
+  const eventId = event?.id;
+  const eventType = event?.type;
+  const response = event?.data;
+  const responseId = response?.id;
+
+  console.info(`[webhook] Event: id=${eventId}, type=${eventType}, responseId=${responseId}`);
+
+  if (!responseId) {
+    console.error('[webhook] Missing response ID in payload. Event structure:', JSON.stringify(event));
+    return NextResponse.json({ error: 'Missing response ID' }, { status: 400 });
+  }
 
   // Look up the newsletter run by responseId
   const [run] = await db
@@ -66,6 +78,8 @@ export async function POST(req: NextRequest) {
     // Return 200 to acknowledge receipt even if we can't process it
     return NextResponse.json({ ok: true, message: 'No matching run found' });
   }
+
+  console.info(`[webhook] Found run ${run.id} for customer ${run.customerId}`);
 
   // Skip if already processed
   if (run.status === 'success' || run.status === 'error') {
@@ -85,8 +99,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'Customer not found' }, { status: 500 });
   }
 
-  // Handle based on status
-  if (response.status === 'completed') {
+  // Handle based on event type
+  if (eventType === 'response.completed') {
     try {
       const { payload, rawText } = extractPayloadFromWebhook(response);
       
@@ -108,17 +122,17 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Handle failure statuses
-  if (response.status === 'failed' || response.status === 'cancelled' || response.status === 'expired') {
-    const errorMessage = response.error?.message ?? `Research ${response.status}`;
+  // Handle failure event types
+  if (eventType === 'response.failed' || eventType === 'response.cancelled' || eventType === 'response.incomplete') {
+    const errorMessage = response?.error?.message ?? `Research ${eventType.replace('response.', '')}`;
     await markNewsletterFailed({ runId: run.id, errorMessage });
     console.warn(`[webhook] Research failed for ${customer.name}: ${errorMessage}`);
     return NextResponse.json({ ok: true, runId: run.id, status: 'error' });
   }
 
-  // Unexpected status - log but don't fail
-  console.warn(`[webhook] Unexpected status ${response.status} for responseId=${responseId}`);
-  return NextResponse.json({ ok: true, message: `Unexpected status: ${response.status}` });
+  // Unexpected event type - log but don't fail
+  console.warn(`[webhook] Unexpected event type ${eventType} for responseId=${responseId}`);
+  return NextResponse.json({ ok: true, message: `Unexpected event type: ${eventType}` });
 }
 
 /**
@@ -132,5 +146,3 @@ export async function GET() {
     timestamp: new Date().toISOString(),
   });
 }
-
-
