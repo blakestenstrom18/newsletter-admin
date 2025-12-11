@@ -104,6 +104,27 @@ export async function checkResearchStatus(responseId: string): Promise<ResearchS
 }
 
 /**
+ * Fetches full response details from OpenAI API.
+ * Used to get error details when a response fails.
+ */
+export async function fetchResponseDetails(responseId: string): Promise<{
+  status?: string;
+  error?: string;
+  lastError?: { message?: string; code?: string };
+}> {
+  const client = getClient();
+  const resp = await client.responses.retrieve(responseId);
+  
+  const lastError = (resp as { last_error?: { message?: string; code?: string } }).last_error;
+  
+  return {
+    status: resp.status,
+    error: lastError?.message,
+    lastError,
+  };
+}
+
+/**
  * Legacy function for backward compatibility - runs synchronously with polling.
  * WARNING: This will timeout on Vercel. Use startResearch() + checkResearchStatus() instead.
  * @deprecated Use startResearch() and checkResearchStatus() for async workflow

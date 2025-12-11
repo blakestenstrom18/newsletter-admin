@@ -3,7 +3,7 @@ import { db } from '@/db';
 import { newsletterRun, customerConfig } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { completeNewsletterGeneration, markNewsletterFailed } from '@/services/newsletter';
-import { extractPayloadFromWebhook } from '@/services/deepResearch';
+import { extractPayloadFromWebhook, fetchResponseDetails } from '@/services/deepResearch';
 
 export const runtime = 'nodejs';
 
@@ -124,7 +124,19 @@ export async function POST(req: NextRequest) {
 
   // Handle failure event types
   if (eventType === 'response.failed' || eventType === 'response.cancelled' || eventType === 'response.incomplete') {
-    const errorMessage = response?.error?.message ?? `Research ${eventType.replace('response.', '')}`;
+    // Try to get more details from the OpenAI API
+    let errorMessage = response?.error?.message ?? `Research ${eventType.replace('response.', '')}`;
+    
+    try {
+      const fullResponse = await fetchResponseDetails(responseId);
+      if (fullResponse.error) {
+        errorMessage = `${eventType.replace('response.', '')}: ${fullResponse.error}`;
+      }
+      console.info(`[webhook] Full response details:`, JSON.stringify(fullResponse));
+    } catch (fetchErr) {
+      console.warn(`[webhook] Could not fetch response details:`, fetchErr);
+    }
+    
     await markNewsletterFailed({ runId: run.id, errorMessage });
     console.warn(`[webhook] Research failed for ${customer.name}: ${errorMessage}`);
     return NextResponse.json({ ok: true, runId: run.id, status: 'error' });
