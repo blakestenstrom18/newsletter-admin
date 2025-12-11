@@ -227,7 +227,7 @@ export default function CustomerDetailPage() {
               status: string; 
               triggerType: string; 
               errorMessage?: string; 
-              content?: unknown;
+              content?: Record<string, unknown> | null;
               googleDocUrl?: string;
             }) => (
               <Card key={newsletter.id}>
