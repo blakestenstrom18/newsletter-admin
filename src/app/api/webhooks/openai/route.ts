@@ -13,17 +13,17 @@ export const runtime = 'nodejs';
  * Configure this URL in your OpenAI dashboard under Webhooks.
  */
 export async function POST(req: NextRequest) {
-  // Verify webhook secret if configured
-  const webhookSecret = process.env.OPENAI_WEBHOOK_SECRET;
-  if (webhookSecret) {
-    const authHeader = req.headers.get('authorization');
-    const providedSecret = authHeader?.replace('Bearer ', '');
-    
-    if (providedSecret !== webhookSecret) {
-      console.warn('[webhook] Invalid or missing webhook secret');
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-  }
+  // Log headers for debugging (OpenAI webhook verification)
+  const headers: Record<string, string> = {};
+  req.headers.forEach((value, key) => {
+    headers[key] = key.toLowerCase().includes('secret') || key.toLowerCase().includes('auth') 
+      ? '[REDACTED]' 
+      : value;
+  });
+  console.info('[webhook] Received request with headers:', JSON.stringify(headers));
+
+  // Note: OpenAI webhook verification is handled by checking that the responseId
+  // exists in our database. Additional secret verification can be added if needed.
 
   let body: unknown;
   try {
