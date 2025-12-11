@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const responsesCreate = vi.fn();
 const responsesRetrieve = vi.fn();
@@ -50,16 +50,31 @@ const baseCustomer: Customer = {
 beforeEach(() => {
   responsesCreate.mockReset();
   responsesRetrieve.mockReset();
-  envMock.DEEP_RESEARCH_MAX_WAIT_MS = 15_000;
-  vi.useRealTimers();
+  vi.resetModules();
 });
 
-afterEach(() => {
-  vi.useRealTimers();
+describe('startResearch', () => {
+  it('kicks off research and returns responseId immediately', async () => {
+    responsesCreate.mockResolvedValue({ id: 'resp_123' });
+
+    const { startResearch } = await import('../src/services/deepResearch');
+    const responseId = await startResearch(baseCustomer as Parameters<typeof startResearch>[0]);
+
+    expect(responseId).toBe('resp_123');
+    expect(responsesCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: envMock.DEEP_RESEARCH_MODEL,
+        background: true,
+        tools: [{ type: 'web_search_preview' }],
+      }),
+    );
+    // Should not call retrieve - that's separate
+    expect(responsesRetrieve).not.toHaveBeenCalled();
+  });
 });
 
-describe('runNewsResearch', () => {
-  it('returns structured payloads from completed runs', async () => {
+describe('checkResearchStatus', () => {
+  it('returns completed with payload when research is done', async () => {
     const payload = {
       customerNews: [
         { title: 'Acme launches AI', summary: 'Great news', url: 'https://example.com/acme-ai', source: 'TechCrunch' },
@@ -72,7 +87,6 @@ describe('runNewsResearch', () => {
       ],
     };
 
-    responsesCreate.mockResolvedValue({ id: 'resp_123' });
     responsesRetrieve.mockResolvedValue({
       id: 'resp_123',
       status: 'completed',
@@ -89,22 +103,41 @@ describe('runNewsResearch', () => {
       ],
     });
 
-    const { runNewsResearch } = await import('../src/services/deepResearch');
-    const result = await runNewsResearch(baseCustomer as any);
+    const { checkResearchStatus } = await import('../src/services/deepResearch');
+    const result = await checkResearchStatus('resp_123');
 
-    expect(result.responseId).toBe('resp_123');
-    expect(result.payload).toEqual(payload);
-    expect(responsesCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        model: envMock.DEEP_RESEARCH_MODEL,
-        background: true,
-      }),
-    );
-    expect(responsesRetrieve).toHaveBeenCalledTimes(1);
+    expect(result.status).toBe('completed');
+    if (result.status === 'completed') {
+      expect(result.payload).toEqual(payload);
+      expect(result.rawText).toContain('customerNews');
+    }
   });
 
-  it('throws when payload cannot be parsed', async () => {
-    responsesCreate.mockResolvedValue({ id: 'resp_bad' });
+  it('returns in_progress when research is still running', async () => {
+    responsesRetrieve.mockResolvedValue({
+      id: 'resp_123',
+      status: 'in_progress',
+    });
+
+    const { checkResearchStatus } = await import('../src/services/deepResearch');
+    const result = await checkResearchStatus('resp_123');
+
+    expect(result.status).toBe('in_progress');
+  });
+
+  it('returns in_progress when status is queued', async () => {
+    responsesRetrieve.mockResolvedValue({
+      id: 'resp_123',
+      status: 'queued',
+    });
+
+    const { checkResearchStatus } = await import('../src/services/deepResearch');
+    const result = await checkResearchStatus('resp_123');
+
+    expect(result.status).toBe('in_progress');
+  });
+
+  it('returns failed when payload cannot be parsed', async () => {
     responsesRetrieve.mockResolvedValue({
       id: 'resp_bad',
       status: 'completed',
@@ -116,23 +149,40 @@ describe('runNewsResearch', () => {
       ],
     });
 
-    const { runNewsResearch } = await import('../src/services/deepResearch');
-    await expect(runNewsResearch(baseCustomer as any)).rejects.toThrow(/Failed to parse JSON/i);
+    const { checkResearchStatus } = await import('../src/services/deepResearch');
+    const result = await checkResearchStatus('resp_bad');
+
+    expect(result.status).toBe('failed');
+    if (result.status === 'failed') {
+      expect(result.error).toContain('Failed to parse JSON');
+    }
   });
 
-  it('times out when the run never completes', async () => {
-    envMock.DEEP_RESEARCH_MAX_WAIT_MS = 1_000;
-    responsesCreate.mockResolvedValue({ id: 'resp_timeout' });
-    responsesRetrieve.mockResolvedValue({ id: 'resp_timeout', status: 'in_progress' });
+  it('returns failed when research fails', async () => {
+    responsesRetrieve.mockResolvedValue({
+      id: 'resp_failed',
+      status: 'failed',
+      last_error: { message: 'Rate limit exceeded' },
+    });
 
-    vi.useFakeTimers();
+    const { checkResearchStatus } = await import('../src/services/deepResearch');
+    const result = await checkResearchStatus('resp_failed');
 
-    const { runNewsResearch } = await import('../src/services/deepResearch');
-    const expectation = expect(runNewsResearch(baseCustomer as any)).rejects.toThrow(/timed out/i);
+    expect(result.status).toBe('failed');
+    if (result.status === 'failed') {
+      expect(result.error).toBe('Rate limit exceeded');
+    }
+  });
 
-    await vi.advanceTimersByTimeAsync(2_000);
+  it('returns cancelled when research is cancelled', async () => {
+    responsesRetrieve.mockResolvedValue({
+      id: 'resp_cancelled',
+      status: 'cancelled',
+    });
 
-    await expectation;
+    const { checkResearchStatus } = await import('../src/services/deepResearch');
+    const result = await checkResearchStatus('resp_cancelled');
+
+    expect(result.status).toBe('cancelled');
   });
 });
-

@@ -1,21 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
 import { customerConfig, newsletterRun } from '@/db/schema';
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { isCustomerDue } from '@/lib/scheduler';
-import { generateAndPersistNewsletter } from '@/services/newsletter';
+import { startNewsletterGeneration, markNewsletterFailed } from '@/services/newsletter';
 
 export const runtime = 'nodejs';
 
+/**
+ * POST /api/jobs/run-newsletters
+ * Daily cron job that starts newsletter generation for customers that are due.
+ * Kicks off deep research but does NOT wait for completion.
+ * The poll-research cron job will complete the newsletters when research is done.
+ */
 export async function POST(req: NextRequest) {
   // Protect with secret header
-  // Check for Authorization header with CRON_SECRET
   const authz = req.headers.get('authorization') ?? '';
   const cronSecret = process.env.CRON_SECRET;
   const expected = `Bearer ${cronSecret}`;
   
   // Allow Vercel cron (internal) or manual calls with CRON_SECRET
-  // Vercel cron jobs are internal requests, but we still want to protect from external calls
   const isVercelCron = req.headers.get('user-agent')?.includes('vercel-cron') || 
                        req.headers.get('x-vercel-signature');
   
@@ -26,10 +30,19 @@ export async function POST(req: NextRequest) {
   const now = new Date();
   const customers = await db.select().from(customerConfig).where(eq(customerConfig.active, true));
 
-  const results: any[] = [];
+  const results: Array<{
+    customerId: string;
+    customerName: string;
+    ok: boolean;
+    runId?: string;
+    responseId?: string;
+    error?: string;
+  }> = [];
+
   for (const cust of customers) {
     if (!isCustomerDue(cust, now)) continue;
 
+    // Create pending newsletter run
     const [run] = await db.insert(newsletterRun).values({
       customerId: cust.id,
       triggerType: 'scheduled',
@@ -37,17 +50,46 @@ export async function POST(req: NextRequest) {
     }).returning();
 
     try {
-      const res = await generateAndPersistNewsletter({ customer: cust, runId: run.id });
-      results.push({ id: cust.id, ok: true, docUrl: res.googleDocUrl });
-    } catch (err: any) {
-      await db.update(newsletterRun).set({
-        status: 'error',
-        errorMessage: err?.message ?? String(err),
-      }).where(eq(newsletterRun.id, run.id));
-      results.push({ id: cust.id, ok: false, error: err?.message });
+      // Start research (returns immediately)
+      const result = await startNewsletterGeneration({ customer: cust, runId: run.id });
+      
+      results.push({ 
+        customerId: cust.id, 
+        customerName: cust.name,
+        ok: true, 
+        runId: result.runId,
+        responseId: result.responseId,
+      });
+
+      console.info(`[run-newsletters] started research for ${cust.name} (runId=${run.id})`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      await markNewsletterFailed({ runId: run.id, errorMessage: message });
+      
+      results.push({ 
+        customerId: cust.id, 
+        customerName: cust.name,
+        ok: false, 
+        error: message,
+      });
+
+      console.error(`[run-newsletters] failed to start research for ${cust.name}:`, message);
     }
   }
 
-  return NextResponse.json({ ok: true, processed: results.length, results });
-}
+  const started = results.filter(r => r.ok).length;
+  const failed = results.filter(r => !r.ok).length;
 
+  console.info(`[run-newsletters] done: ${started} started, ${failed} failed`);
+
+  return NextResponse.json({ 
+    ok: true, 
+    processed: results.length,
+    started,
+    failed,
+    results,
+    message: started > 0 
+      ? `Started ${started} newsletter(s). They will complete in 5-30 minutes.`
+      : 'No newsletters due today.',
+  });
+}

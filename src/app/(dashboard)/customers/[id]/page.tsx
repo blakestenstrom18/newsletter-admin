@@ -1,27 +1,81 @@
 'use client';
 
 import useSWR from 'swr';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import CustomerForm from '@/components/customers/customer-form';
 import Link from 'next/link';
-import { ArrowLeft, Edit, Play, FileText, Calendar, Settings } from 'lucide-react';
+import { ArrowLeft, Edit, Play, FileText, Calendar, Settings, Loader2 } from 'lucide-react';
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
+
+// Helper to determine badge variant for newsletter status
+function getStatusBadgeVariant(status: string): 'default' | 'destructive' | 'secondary' | 'outline' {
+  switch (status) {
+    case 'success':
+      return 'default';
+    case 'error':
+      return 'destructive';
+    case 'researching':
+      return 'outline';
+    default:
+      return 'secondary';
+  }
+}
+
+// Helper to format status display
+function getStatusDisplay(status: string): string {
+  switch (status) {
+    case 'researching':
+      return 'Researching...';
+    case 'pending':
+      return 'Pending';
+    case 'success':
+      return 'Success';
+    case 'error':
+      return 'Error';
+    default:
+      return status;
+  }
+}
 
 export default function CustomerDetailPage() {
   const params = useParams<{ id: string }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
-  const router = useRouter();
   const { data, mutate } = useSWR(id ? `/api/customers/${id}` : null, fetcher);
-  const { data: newsletters, mutate: mutateNewsletters } = useSWR(id ? `/api/customers/${id}/newsletters` : null, fetcher);
+  const { data: newsletters, mutate: mutateNewsletters } = useSWR(
+    id ? `/api/customers/${id}/newsletters` : null, 
+    fetcher,
+    {
+      // Auto-refresh every 30 seconds if there are researching jobs
+      refreshInterval: (newsletters: Array<{ status: string }> | undefined) => {
+        if (!newsletters) return 0;
+        const hasResearching = newsletters.some((n: { status: string }) => n.status === 'researching');
+        return hasResearching ? 30000 : 0; // 30 seconds if researching, otherwise don't auto-refresh
+      },
+    }
+  );
   const [running, setRunning] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
+
+  // Check if there are any researching newsletters
+  const hasResearchingNewsletters = newsletters?.some((n: { status: string }) => n.status === 'researching');
+
+  // Show toast when a researching newsletter completes
+  useEffect(() => {
+    if (newsletters && !hasResearchingNewsletters && running === false) {
+      // Check if the most recent newsletter just completed
+      const mostRecent = newsletters[0];
+      if (mostRecent?.status === 'success') {
+        // The toast would have already been shown when starting
+      }
+    }
+  }, [newsletters, hasResearchingNewsletters, running]);
 
   if (!id) {
     return (
@@ -45,22 +99,35 @@ export default function CustomerDetailPage() {
     setRunning(true);
     try {
       const r = await fetch(`/api/customers/${id}/run`, { method: 'POST' });
+      const j = await r.json();
       setRunning(false);
+      
       if (!r.ok) {
-        const error = await r.json();
-        toast.error('Generation failed', { description: error.error || error.details || 'Unknown error' });
+        toast.error('Failed to start research', { 
+          description: j.error || j.details || 'Unknown error' 
+        });
         return;
       }
-      const j = await r.json();
-      const message = j.googleDocUrl 
-        ? `View in app or Google Docs: ${j.googleDocUrl}`
-        : 'Newsletter generated and stored in database';
-      toast.success('Newsletter generated', { description: message });
+      
+      // New async flow - research has started but not completed yet
+      if (j.status === 'researching') {
+        toast.success('Research started', { 
+          description: 'Deep research is running. This typically takes 5-30 minutes. The page will auto-refresh.',
+          duration: 8000,
+        });
+      } else {
+        // Legacy sync flow (shouldn't happen anymore)
+        const message = j.googleDocUrl 
+          ? `View in app or Google Docs: ${j.googleDocUrl}`
+          : 'Newsletter generated and stored in database';
+        toast.success('Newsletter generated', { description: message });
+      }
+      
       mutate(); // Refresh customer data
       mutateNewsletters(); // Refresh newsletter list
     } catch (err) {
       setRunning(false);
-      toast.error('Generation failed', { description: String(err) });
+      toast.error('Failed to start research', { description: String(err) });
     }
   }
 
@@ -119,9 +186,23 @@ export default function CustomerDetailPage() {
               <Edit className="mr-2 h-4 w-4" />
               Edit
             </Button>
-            <Button onClick={runNow} disabled={running}>
-              <Play className="mr-2 h-4 w-4" />
-              {running ? 'Running...' : 'Run Newsletter Now'}
+            <Button onClick={runNow} disabled={running || hasResearchingNewsletters}>
+              {running ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Starting...
+                </>
+              ) : hasResearchingNewsletters ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Research in Progress...
+                </>
+              ) : (
+                <>
+                  <Play className="mr-2 h-4 w-4" />
+                  Run Newsletter Now
+                </>
+              )}
             </Button>
           </div>
         </div>
@@ -131,10 +212,24 @@ export default function CustomerDetailPage() {
         <div className="flex items-center gap-2">
           <FileText className="h-5 w-5" />
           <h2 className="text-xl font-semibold">Newsletter History</h2>
+          {hasResearchingNewsletters && (
+            <Badge variant="outline" className="ml-2">
+              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+              Auto-refreshing
+            </Badge>
+          )}
         </div>
         {newsletters && newsletters.length > 0 ? (
           <div className="space-y-2">
-            {newsletters.map((newsletter: any) => (
+            {newsletters.map((newsletter: { 
+              id: string; 
+              startedAt: string; 
+              status: string; 
+              triggerType: string; 
+              errorMessage?: string; 
+              content?: unknown;
+              googleDocUrl?: string;
+            }) => (
               <Card key={newsletter.id}>
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
@@ -150,11 +245,22 @@ export default function CustomerDetailPage() {
                             minute: '2-digit',
                           })}
                         </span>
-                        <Badge variant={newsletter.status === 'success' ? 'default' : newsletter.status === 'error' ? 'destructive' : 'secondary'}>
-                          {newsletter.status}
+                        <Badge 
+                          variant={getStatusBadgeVariant(newsletter.status)}
+                          className={newsletter.status === 'researching' ? 'animate-pulse' : ''}
+                        >
+                          {newsletter.status === 'researching' && (
+                            <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                          )}
+                          {getStatusDisplay(newsletter.status)}
                         </Badge>
                         <Badge variant="outline">{newsletter.triggerType}</Badge>
                       </div>
+                      {newsletter.status === 'researching' && (
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Deep research is running. This typically takes 5-30 minutes...
+                        </p>
+                      )}
                       {newsletter.errorMessage && (
                         <p className="text-sm text-destructive mt-1">{newsletter.errorMessage}</p>
                       )}
@@ -188,7 +294,7 @@ export default function CustomerDetailPage() {
               <p className="text-muted-foreground mb-4">No newsletters generated yet.</p>
               <Button onClick={runNow} disabled={running}>
                 <Play className="mr-2 h-4 w-4" />
-                {running ? 'Running...' : 'Generate First Newsletter'}
+                {running ? 'Starting...' : 'Generate First Newsletter'}
               </Button>
             </CardContent>
           </Card>
@@ -272,4 +378,3 @@ export default function CustomerDetailPage() {
     </div>
   );
 }
-
