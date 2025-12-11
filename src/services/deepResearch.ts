@@ -142,7 +142,23 @@ export async function runNewsResearch(customer: CustomerRecord): Promise<DeepRes
   }
 }
 
-function extractPayload(response: OpenAI.Responses.Response): { payload: DeepResearchPayload; rawText: string } {
+/**
+ * Extracts payload from a webhook callback body.
+ * Used by the /api/webhooks/openai endpoint.
+ */
+export function extractPayloadFromWebhook(response: {
+  output?: Array<{
+    type: string;
+    content?: Array<{
+      type: string;
+      text?: string;
+    }>;
+  }>;
+}): { payload: DeepResearchPayload; rawText: string } {
+  return extractPayload(response);
+}
+
+function extractPayload(response: { output?: Array<{ type: string; content?: Array<{ type: string; text?: string }> }> }): { payload: DeepResearchPayload; rawText: string } {
   const textChunks: string[] = [];
   for (const item of response.output ?? []) {
     if (item.type !== 'message') continue;
