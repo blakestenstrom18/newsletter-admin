@@ -81,7 +81,8 @@ export default middleware;
 export const config = {
   matcher: [
     '/api/auth/:path*',
-    '/((?!api/auth|auth|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)',
+    // Exclude public paths: auth, webhooks, cron jobs, static files
+    '/((?!api/auth|api/webhooks|api/jobs|auth|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)',
   ],
 };
 
