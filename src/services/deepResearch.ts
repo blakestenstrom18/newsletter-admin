@@ -57,7 +57,7 @@ export async function startResearch(customer: CustomerRecord): Promise<string> {
     input: [{ role: 'user', content: prompt }],
     background: true,
     tools: [{ type: 'web_search_preview' }],
-    max_output_tokens: 10000, // Reduced further to ensure we stay under 200k TPM
+    max_output_tokens: 5000, // Drastically reduced to 5k to guarantee fitting in 200k limit
   } as any);
 
   console.info(`[deep-research] queued ${customer.name} (responseId=${createResp.id})`);
@@ -184,7 +184,21 @@ export function extractPayloadFromWebhook(response: {
   return extractPayload(response);
 }
 
-function extractPayload(response: { output?: Array<{ type: string; content?: Array<{ type: string; text?: string }> }> }): { payload: DeepResearchPayload; rawText: string } {
+function extractPayload(response: any): { payload: DeepResearchPayload; rawText: string } {
+  // First check for top-level output_text (common in deep research responses)
+  if (typeof response.output_text === 'string' && response.output_text.trim().length > 0) {
+    const joined = response.output_text.trim();
+    const cleaned = stripCodeFences(joined);
+    const parsed = safeParseJson(cleaned);
+
+    if (parsed && typeof parsed === 'object') {
+      return {
+        payload: parsed as DeepResearchPayload,
+        rawText: joined,
+      };
+    }
+  }
+
   const textChunks: string[] = [];
   for (const item of response.output ?? []) {
     if (item.type !== 'message') continue;
@@ -197,6 +211,7 @@ function extractPayload(response: { output?: Array<{ type: string; content?: Arr
 
   const joined = textChunks.join('\n').trim();
   if (!joined) {
+    console.error('[deep-research] payload extraction failed. Response structure:', JSON.stringify(response, null, 2));
     throw new Error('Deep research response did not include output_text content');
   }
 
