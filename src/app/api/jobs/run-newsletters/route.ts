@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
 import { customerConfig, newsletterRun } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and, or, ne, inArray } from 'drizzle-orm';
 import { isCustomerDue } from '@/lib/scheduler';
 import { startNewsletterGeneration, markNewsletterFailed } from '@/services/newsletter';
 
@@ -18,11 +18,11 @@ export async function POST(req: NextRequest) {
   const authz = req.headers.get('authorization') ?? '';
   const cronSecret = process.env.CRON_SECRET;
   const expected = `Bearer ${cronSecret}`;
-  
+
   // Allow Vercel cron (internal) or manual calls with CRON_SECRET
-  const isVercelCron = req.headers.get('user-agent')?.includes('vercel-cron') || 
-                       req.headers.get('x-vercel-signature');
-  
+  const isVercelCron = req.headers.get('user-agent')?.includes('vercel-cron') ||
+    req.headers.get('x-vercel-signature');
+
   if (!isVercelCron && (!authz || authz !== expected)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -42,6 +42,26 @@ export async function POST(req: NextRequest) {
   for (const cust of customers) {
     if (!isCustomerDue(cust, now)) continue;
 
+    // Check for existing active run (pending or researching)
+    // We do NOT block 'failed' runs, so they can be retried.
+    const activeRuns = await db.select().from(newsletterRun).where(
+      and(
+        eq(newsletterRun.customerId, cust.id),
+        inArray(newsletterRun.status, ['pending', 'researching'])
+      )
+    ).limit(1);
+
+    if (activeRuns.length > 0) {
+      console.warn(`[run-newsletters] skipping ${cust.name}, active run found: ${activeRuns[0].id} (status=${activeRuns[0].status})`);
+      results.push({
+        customerId: cust.id,
+        customerName: cust.name,
+        ok: false,
+        error: `Skipped: Active run ${activeRuns[0].id} is ${activeRuns[0].status}`,
+      });
+      continue;
+    }
+
     // Create pending newsletter run
     const [run] = await db.insert(newsletterRun).values({
       customerId: cust.id,
@@ -52,11 +72,11 @@ export async function POST(req: NextRequest) {
     try {
       // Start research (returns immediately)
       const result = await startNewsletterGeneration({ customer: cust, runId: run.id });
-      
-      results.push({ 
-        customerId: cust.id, 
+
+      results.push({
+        customerId: cust.id,
         customerName: cust.name,
-        ok: true, 
+        ok: true,
         runId: result.runId,
         responseId: result.responseId,
       });
@@ -65,11 +85,11 @@ export async function POST(req: NextRequest) {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       await markNewsletterFailed({ runId: run.id, errorMessage: message });
-      
-      results.push({ 
-        customerId: cust.id, 
+
+      results.push({
+        customerId: cust.id,
         customerName: cust.name,
-        ok: false, 
+        ok: false,
         error: message,
       });
 
@@ -82,13 +102,13 @@ export async function POST(req: NextRequest) {
 
   console.info(`[run-newsletters] done: ${started} started, ${failed} failed`);
 
-  return NextResponse.json({ 
-    ok: true, 
+  return NextResponse.json({
+    ok: true,
     processed: results.length,
     started,
     failed,
     results,
-    message: started > 0 
+    message: started > 0
       ? `Started ${started} newsletter(s). They will complete in 5-30 minutes.`
       : 'No newsletters due today.',
   });
