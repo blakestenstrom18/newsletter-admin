@@ -57,7 +57,7 @@ export async function startResearch(customer: CustomerRecord): Promise<string> {
     input: [{ role: 'user', content: prompt }],
     background: true,
     tools: [{ type: 'web_search_preview' }],
-    max_output_tokens: 20000, // Reduced to avoid hitting 200k TPM limit
+    max_output_tokens: 10000, // Reduced further to ensure we stay under 200k TPM
   } as any);
 
   console.info(`[deep-research] queued ${customer.name} (responseId=${createResp.id})`);
