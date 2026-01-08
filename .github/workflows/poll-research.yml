@@ -1,0 +1,18 @@
+name: Poll Research
+
+on:
+  schedule:
+    # Run every 5 minutes
+    - cron: '*/5 * * * *'
+  # Allow manual triggering
+  workflow_dispatch:
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Poll API
+        run: |
+          curl -X POST "${{ secrets.VERCEL_URL }}/api/jobs/poll-research" \
+          -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+          -H "Content-Type: application/json"
