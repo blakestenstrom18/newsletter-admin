@@ -54,10 +54,11 @@ export async function startResearch(customer: CustomerRecord): Promise<string> {
 
   const createResp = await client.responses.create({
     model: env.DEEP_RESEARCH_MODEL,
-    input: prompt,
+    input: [{ role: 'user', content: prompt }],
     background: true,
     tools: [{ type: 'web_search_preview' }],
-  });
+    max_output_tokens: 50000, // Important for o-series/deep research
+  } as any);
 
   console.info(`[deep-research] queued ${customer.name} (responseId=${createResp.id})`);
 
@@ -111,16 +112,20 @@ export async function fetchResponseDetails(responseId: string): Promise<{
   status?: string;
   error?: string;
   lastError?: { message?: string; code?: string };
+  rawResponse?: any;
 }> {
   const client = getClient();
   const resp = await client.responses.retrieve(responseId);
-  
-  const lastError = (resp as { last_error?: { message?: string; code?: string } }).last_error;
-  
+
+  console.info(`[deep-research] full retrieved response for ${responseId}:`, JSON.stringify(resp, null, 2));
+
+  const lastError = (resp as any).last_error;
+
   return {
     status: resp.status,
     error: lastError?.message,
     lastError,
+    rawResponse: resp,
   };
 }
 
