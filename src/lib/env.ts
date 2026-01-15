@@ -8,7 +8,8 @@ const envSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   DATABASE_URL: z.string().url(),
   CRON_SECRET: z.string(),
-  OPENAI_API_KEY: z.string(),
+  OPENAI_API_KEY: z.string().optional(), // Now optional
+  GOOGLE_API_KEY: z.string(), // Required for Gemini
   // Google Drive is optional - newsletters are stored in database by default
   GOOGLE_SERVICE_ACCOUNT_EMAIL: z.string().email().optional(),
   GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: z.string().optional(),
@@ -31,19 +32,20 @@ const envValues = {
   GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
   DATABASE_URL: process.env.DATABASE_URL || 'postgresql://dummy@localhost/dummy',
   CRON_SECRET: process.env.CRON_SECRET || 'dummy-cron-secret',
-  OPENAI_API_KEY: process.env.OPENAI_API_KEY || 'dummy-openai-key',
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+  GOOGLE_API_KEY: process.env.GOOGLE_API_KEY || 'dummy-google-key',
   GOOGLE_SERVICE_ACCOUNT_EMAIL: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
   GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY,
   GOOGLE_DRIVE_PARENT_FOLDER_ID: process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID,
   NEWS_API_KEY: process.env.NEWS_API_KEY,
-  DEEP_RESEARCH_MODEL: process.env.DEEP_RESEARCH_MODEL || 'o3-deep-research',
+  DEEP_RESEARCH_MODEL: process.env.DEEP_RESEARCH_MODEL || 'gemini-2.0-flash',
   DEEP_RESEARCH_TIMEOUT_MS: Number(process.env.DEEP_RESEARCH_TIMEOUT_MS ?? 3_600_000),
   DEEP_RESEARCH_MAX_WAIT_MS: Number(process.env.DEEP_RESEARCH_MAX_WAIT_MS ?? 900_000),
   AUTH_BCRYPT_ROUNDS: Number(process.env.AUTH_BCRYPT_ROUNDS ?? 10),
   AUTH_MAX_FAILED_ATTEMPTS: Number(process.env.AUTH_MAX_FAILED_ATTEMPTS ?? 5),
 };
 
-export const env = isBuildTime 
+export const env = isBuildTime
   ? (envValues as z.infer<typeof envSchema>)
   : envSchema.parse(envValues);
 

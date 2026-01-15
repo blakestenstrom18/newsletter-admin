@@ -1,4 +1,4 @@
-import OpenAI from 'openai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import type { customerConfig } from '@/db/schema';
 import { env } from '@/lib/env';
 
@@ -19,238 +19,89 @@ export type DeepResearchPayload = {
 };
 
 export type DeepResearchResult = {
-  responseId: string;
   payload: DeepResearchPayload;
   rawText: string;
 };
 
-export type ResearchStatusResult =
-  | { status: 'pending' }
-  | { status: 'in_progress' }
-  | { status: 'completed'; payload: DeepResearchPayload; rawText: string }
-  | { status: 'failed'; error: string }
-  | { status: 'cancelled' }
-  | { status: 'expired' };
-
-let cachedClient: OpenAI | null = null;
+let cachedClient: GoogleGenerativeAI | null = null;
 
 function getClient() {
   if (!cachedClient) {
-    cachedClient = new OpenAI({
-      apiKey: env.OPENAI_API_KEY,
-      timeout: 30_000, // 30s timeout for individual API calls
-    });
+    cachedClient = new GoogleGenerativeAI(env.GOOGLE_API_KEY);
   }
   return cachedClient;
 }
 
 /**
- * Kicks off a deep research job and returns immediately with the responseId.
- * Does NOT wait for completion - use checkResearchStatus() to poll.
+ * Performs synchronous deep research using Google Gemini 2.0 Flash.
+ * This function waits for the research to complete and returns the parsed payload.
  */
-export async function startResearch(customer: CustomerRecord): Promise<string> {
+export async function performGeminiResearch(customer: CustomerRecord): Promise<DeepResearchResult> {
   const client = getClient();
+  const model = client.getGenerativeModel({
+    model: env.DEEP_RESEARCH_MODEL,
+    tools: [{ googleSearch: {} }] as any
+  });
+
   const prompt = buildPrompt(customer);
 
-  const createResp = await client.responses.create({
-    model: env.DEEP_RESEARCH_MODEL,
-    input: [{ role: 'user', content: prompt }],
-    background: true,
-    tools: [{ type: 'web_search_preview' }],
-    max_output_tokens: 5000, // Drastically reduced to 5k to guarantee fitting in 200k limit
-  } as any);
+  console.info(`[deep-research] starting gemini research for ${customer.name}`);
 
-  console.info(`[deep-research] queued ${customer.name} (responseId=${createResp.id})`);
+  try {
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
 
-  return createResp.id;
-}
+    console.info(`[deep-research] completed gemini research for ${customer.name} (length=${text.length})`);
 
-/**
- * Checks the status of a deep research job once.
- * Returns the current status and payload if completed.
- */
-export async function checkResearchStatus(responseId: string): Promise<ResearchStatusResult> {
-  const client = getClient();
+    const cleaned = stripCodeFences(text);
+    const payload = safeParseJson(cleaned);
 
-  const resp = await client.responses.retrieve(responseId);
-  const status = resp.status;
-
-  console.info(`[deep-research] status check for ${responseId}: ${status}`);
-
-  if (!status || status === 'queued' || status === 'in_progress') {
-    return { status: 'in_progress' };
-  }
-
-  if (status === 'completed') {
-    try {
-      const { payload, rawText } = extractPayload(resp);
-      return { status: 'completed', payload, rawText };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      return { status: 'failed', error: `Payload extraction failed: ${message}` };
-    }
-  }
-
-  if (status === 'failed' || status === 'incomplete') {
-    const errMessage = (resp as { last_error?: { message?: string } }).last_error?.message ?? 'Unknown error';
-    return { status: 'failed', error: errMessage };
-  }
-
-  if (status === 'cancelled') {
-    return { status: 'cancelled' };
-  }
-
-  // Handle any other terminal status
-  return { status: 'failed', error: `Unexpected status: ${status}` };
-}
-
-/**
- * Fetches full response details from OpenAI API.
- * Used to get error details when a response fails.
- */
-export async function fetchResponseDetails(responseId: string): Promise<{
-  status?: string;
-  error?: string;
-  lastError?: { message?: string; code?: string };
-  rawResponse?: any;
-}> {
-  const client = getClient();
-  const resp = await client.responses.retrieve(responseId);
-
-  console.info(`[deep-research] full retrieved response for ${responseId}:`, JSON.stringify(resp, null, 2));
-
-  const lastError = (resp as any).last_error;
-
-  return {
-    status: resp.status,
-    error: lastError?.message,
-    lastError,
-    rawResponse: resp,
-  };
-}
-
-/**
- * Legacy function for backward compatibility - runs synchronously with polling.
- * WARNING: This will timeout on Vercel. Use startResearch() + checkResearchStatus() instead.
- * @deprecated Use startResearch() and checkResearchStatus() for async workflow
- */
-export async function runNewsResearch(customer: CustomerRecord): Promise<DeepResearchResult> {
-  const responseId = await startResearch(customer);
-  const startedAt = Date.now();
-
-  while (true) {
-    if (Date.now() - startedAt > env.DEEP_RESEARCH_MAX_WAIT_MS) {
-      throw new Error(`Deep research ${responseId} timed out after ${env.DEEP_RESEARCH_MAX_WAIT_MS}ms`);
+    if (
+      !payload ||
+      typeof payload !== 'object' ||
+      !Array.isArray(payload.customerNews) ||
+      !Array.isArray(payload.competitorNews) ||
+      !Array.isArray(payload.industryTrends)
+    ) {
+      throw new Error('Gemini response missing required sections (customerNews, competitorNews, industryTrends)');
     }
 
-    await delay(5000); // Wait 5 seconds between polls
+    return {
+      payload: payload as DeepResearchPayload,
+      rawText: text,
+    };
 
-    const result = await checkResearchStatus(responseId);
-
-    if (result.status === 'completed') {
-      console.info(`[deep-research] completed ${customer.name} (responseId=${responseId}, durationMs=${Date.now() - startedAt})`);
-      return {
-        responseId,
-        payload: result.payload,
-        rawText: result.rawText,
-      };
-    }
-
-    if (result.status === 'failed') {
-      throw new Error(`Deep research ${responseId} failed: ${result.error}`);
-    }
-
-    if (result.status === 'cancelled' || result.status === 'expired') {
-      throw new Error(`Deep research ${responseId} was ${result.status}`);
-    }
-
-    // Still in progress, continue polling
+  } catch (error: any) {
+    console.error(`[deep-research] gemini research failed for ${customer.name}:`, error);
+    throw new Error(`Gemini research failed: ${error.message || String(error)}`);
   }
-}
-
-/**
- * Extracts payload from a webhook callback body.
- * Used by the /api/webhooks/openai endpoint.
- */
-export function extractPayloadFromWebhook(response: {
-  output?: Array<{
-    type: string;
-    content?: Array<{
-      type: string;
-      text?: string;
-    }>;
-  }>;
-}): { payload: DeepResearchPayload; rawText: string } {
-  return extractPayload(response);
-}
-
-function extractPayload(response: any): { payload: DeepResearchPayload; rawText: string } {
-  // First check for top-level output_text (common in deep research responses)
-  if (typeof response.output_text === 'string' && response.output_text.trim().length > 0) {
-    const joined = response.output_text.trim();
-    const cleaned = stripCodeFences(joined);
-    const parsed = safeParseJson(cleaned);
-
-    if (parsed && typeof parsed === 'object') {
-      return {
-        payload: parsed as DeepResearchPayload,
-        rawText: joined,
-      };
-    }
-  }
-
-  const textChunks: string[] = [];
-  for (const item of response.output ?? []) {
-    if (item.type !== 'message') continue;
-    for (const piece of item.content ?? []) {
-      if (piece.type === 'output_text' && typeof piece.text === 'string') {
-        textChunks.push(piece.text);
-      }
-    }
-  }
-
-  const joined = textChunks.join('\n').trim();
-  if (!joined) {
-    console.error('[deep-research] payload extraction failed. Response structure:', JSON.stringify(response, null, 2));
-    throw new Error('Deep research response did not include output_text content');
-  }
-
-  const cleaned = stripCodeFences(joined);
-  const parsed = safeParseJson(cleaned);
-
-  if (
-    !parsed ||
-    typeof parsed !== 'object' ||
-    !Array.isArray(parsed.customerNews) ||
-    !Array.isArray(parsed.competitorNews) ||
-    !Array.isArray(parsed.industryTrends)
-  ) {
-    throw new Error('Deep research payload missing required sections');
-  }
-
-  return {
-    payload: parsed as DeepResearchPayload,
-    rawText: joined,
-  };
 }
 
 function stripCodeFences(text: string) {
-  if (text.startsWith('```')) {
-    return text.replace(/```[\w-]*\n?/g, '').trim();
+  // Remove markdown code blocks if present
+  let cleaned = text.trim();
+  if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```[\w-]*\n?/, '').replace(/\n?```$/, '');
   }
-  return text;
+  return cleaned.trim();
 }
 
 function safeParseJson(text: string) {
   try {
     return JSON.parse(text);
   } catch {
+    // Try to find JSON object if mixed with text
     const start = text.indexOf('{');
     const end = text.lastIndexOf('}');
     if (start >= 0 && end > start) {
-      return JSON.parse(text.slice(start, end + 1));
+      try {
+        return JSON.parse(text.slice(start, end + 1));
+      } catch (e) {
+        // failed inner parse
+      }
     }
-    throw new Error('Failed to parse JSON from deep research output');
+    throw new Error('Failed to parse JSON from Gemini output');
   }
 }
 
@@ -264,6 +115,7 @@ function buildPrompt(customer: CustomerRecord) {
   return `
 You are a senior research analyst supporting executive briefings for enterprise accounts.
 Research must come from reputable sources published within the last 45 days.
+Use Google Search to find real-time information.
 
 Company: ${customer.name}
 Industry: ${customer.industry}
@@ -288,8 +140,4 @@ Expectations:
 - Provide the canonical article URL and publisher name in \`source\`.
 - Avoid duplicate URLs across arrays and cite the most authoritative source available.
 `.trim();
-}
-
-function delay(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }

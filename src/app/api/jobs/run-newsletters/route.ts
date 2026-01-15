@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
     }).returning();
 
     try {
-      // Start research (returns immediately)
+      // Queue pending research
       const result = await startNewsletterGeneration({ customer: cust, runId: run.id });
 
       results.push({
@@ -78,10 +78,9 @@ export async function POST(req: NextRequest) {
         customerName: cust.name,
         ok: true,
         runId: result.runId,
-        responseId: result.responseId,
       });
 
-      console.info(`[run-newsletters] started research for ${cust.name} (runId=${run.id})`);
+      console.info(`[run-newsletters] queued research for ${cust.name} (runId=${run.id})`);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       await markNewsletterFailed({ runId: run.id, errorMessage: message });
